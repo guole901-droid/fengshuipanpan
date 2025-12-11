@@ -35,15 +35,33 @@ const GRID_MAPPING = [
 
 const FLIGHT_PATH = [4, 8, 5, 6, 1, 7, 2, 3, 0]; 
 
+// 【数据修正】
+// 壬山替卦修正为 2 (巨门)
 const MOUNTAINS = [
-  { name: '壬', trigram: 1, yuan: 0, repStar: 1 }, { name: '子', trigram: 1, yuan: 1, repStar: 1 }, { name: '癸', trigram: 1, yuan: 2, repStar: 1 },
-  { name: '丑', trigram: 8, yuan: 0, repStar: 7 }, { name: '艮', trigram: 8, yuan: 1, repStar: 7 }, { name: '寅', trigram: 8, yuan: 2, repStar: 9 },
-  { name: '甲', trigram: 3, yuan: 0, repStar: 1 }, { name: '卯', trigram: 3, yuan: 1, repStar: 2 }, { name: '乙', trigram: 3, yuan: 2, repStar: 2 },
-  { name: '辰', trigram: 4, yuan: 0, repStar: 6 }, { name: '巽', trigram: 4, yuan: 1, repStar: 6 }, { name: '巳', trigram: 4, yuan: 2, repStar: 6 },
-  { name: '丙', trigram: 9, yuan: 0, repStar: 7 }, { name: '午', trigram: 9, yuan: 1, repStar: 9 }, { name: '丁', trigram: 9, yuan: 2, repStar: 9 },
-  { name: '未', trigram: 2, yuan: 0, repStar: 2 }, { name: '坤', trigram: 2, yuan: 1, repStar: 2 }, { name: '申', trigram: 2, yuan: 2, repStar: 1 },
-  { name: '庚', trigram: 7, yuan: 0, repStar: 9 }, { name: '酉', trigram: 7, yuan: 1, repStar: 7 }, { name: '辛', trigram: 7, yuan: 2, repStar: 7 },
-  { name: '戌', trigram: 6, yuan: 0, repStar: 6 }, { name: '乾', trigram: 6, yuan: 1, repStar: 6 }, { name: '亥', trigram: 6, yuan: 2, repStar: 6 },
+  { name: '壬', trigram: 1, yuan: 0, repStar: 2 }, // 修正点
+  { name: '子', trigram: 1, yuan: 1, repStar: 1 },
+  { name: '癸', trigram: 1, yuan: 2, repStar: 1 },
+  { name: '丑', trigram: 8, yuan: 0, repStar: 7 },
+  { name: '艮', trigram: 8, yuan: 1, repStar: 7 },
+  { name: '寅', trigram: 8, yuan: 2, repStar: 9 },
+  { name: '甲', trigram: 3, yuan: 0, repStar: 1 },
+  { name: '卯', trigram: 3, yuan: 1, repStar: 2 },
+  { name: '乙', trigram: 3, yuan: 2, repStar: 2 },
+  { name: '辰', trigram: 4, yuan: 0, repStar: 6 },
+  { name: '巽', trigram: 4, yuan: 1, repStar: 6 },
+  { name: '巳', trigram: 4, yuan: 2, repStar: 6 },
+  { name: '丙', trigram: 9, yuan: 0, repStar: 7 },
+  { name: '午', trigram: 9, yuan: 1, repStar: 9 },
+  { name: '丁', trigram: 9, yuan: 2, repStar: 9 },
+  { name: '未', trigram: 2, yuan: 0, repStar: 2 },
+  { name: '坤', trigram: 2, yuan: 1, repStar: 2 },
+  { name: '申', trigram: 2, yuan: 2, repStar: 1 },
+  { name: '庚', trigram: 7, yuan: 0, repStar: 9 },
+  { name: '酉', trigram: 7, yuan: 1, repStar: 7 },
+  { name: '辛', trigram: 7, yuan: 2, repStar: 7 },
+  { name: '戌', trigram: 6, yuan: 0, repStar: 6 },
+  { name: '乾', trigram: 6, yuan: 1, repStar: 6 },
+  { name: '亥', trigram: 6, yuan: 2, repStar: 6 },
 ];
 
 const TRIGRAM_MOUNTAIN_INDICES = {
@@ -82,56 +100,36 @@ const getAnnualStar = (year) => {
   return star;
 };
 
-// --- 图层分离定位逻辑 ---
-// 计算 Overlay 层图标的位置
-// gridIdx: 0-8
 const getOverlayPosition = (gridIdx) => {
-  // 基于 Grid 3x3 布局，我们通过 CSS 百分比来定位
-  // 偏移量，让图标悬挂在边框外
   const offset = "-2.5rem"; 
-
-  // 基础定位样式
   const base = { position: 'absolute' };
-  const centerH = { left: '50%', transform: 'translateX(-50%)' }; // 水平居中
-  const centerV = { top: '50%', transform: 'translateY(-50%)' };  // 垂直居中
+  const centerH = { left: '50%', transform: 'translateX(-50%)' }; 
+  const centerV = { top: '50%', transform: 'translateY(-50%)' };
 
   switch(gridIdx) {
-    case 1: return { ...base, top: offset, ...centerH }; // S (离) - 上
-    case 7: return { ...base, bottom: offset, ...centerH }; // N (坎) - 下
-    case 3: return { ...base, left: offset, ...centerV }; // E (震) - 左
-    case 5: return { ...base, right: offset, ...centerV }; // W (兑) - 右
-    
-    // 角落位置，向外对角线偏移
-    case 0: return { ...base, top: '-1.5rem', left: '-1.5rem' }; // SE (巽)
-    case 2: return { ...base, top: '-1.5rem', right: '-1.5rem' }; // SW (坤)
-    case 6: return { ...base, bottom: '-1.5rem', left: '-1.5rem' }; // NE (艮)
-    case 8: return { ...base, bottom: '-1.5rem', right: '-1.5rem' }; // NW (乾)
-    
+    case 1: return { ...base, top: offset, ...centerH }; 
+    case 7: return { ...base, bottom: offset, ...centerH }; 
+    case 3: return { ...base, left: offset, ...centerV }; 
+    case 5: return { ...base, right: offset, ...centerV }; 
+    case 0: return { ...base, top: '-1.5rem', left: '-1.5rem' }; 
+    case 2: return { ...base, top: '-1.5rem', right: '-1.5rem' }; 
+    case 6: return { ...base, bottom: '-1.5rem', left: '-1.5rem' }; 
+    case 8: return { ...base, bottom: '-1.5rem', right: '-1.5rem' }; 
     default: return { display: 'none' };
   }
 };
 
-// 水印位置逻辑 (相对于图标)
 const getWatermarkPosition = (gridIdx) => {
-  // 放在图标的旁边
   const gap = "2.2rem";
-  
   switch(gridIdx) {
-    // 上下位置：水印放在图标的一侧（或者两侧，这里放右侧比较整齐，或者放上方）
-    // 需求：放到的位置是坐和向的两边。我们用绝对定位放在图标旁边。
-    case 1: return { top: '50%', left: gap, transform: 'translateY(-50%)', whiteSpace: 'nowrap' }; // S (Top) -> 图标右侧
-    case 7: return { top: '50%', left: gap, transform: 'translateY(-50%)', whiteSpace: 'nowrap' }; // N (Bottom) -> 图标右侧
-    
-    // 左右位置：图标竖排，水印放外侧
-    case 3: return { top: gap, left: '50%', transform: 'translateX(-50%)', whiteSpace: 'nowrap', writingMode: 'vertical-rl' }; // E (Left) -> 图标下方
-    case 5: return { top: gap, left: '50%', transform: 'translateX(-50%)', whiteSpace: 'nowrap', writingMode: 'vertical-rl' }; // W (Right) -> 图标下方
-    
-    // 角落：跟随方向
+    case 1: return { top: '50%', left: gap, transform: 'translateY(-50%)', whiteSpace: 'nowrap' }; 
+    case 7: return { top: '50%', left: gap, transform: 'translateY(-50%)', whiteSpace: 'nowrap' }; 
+    case 3: return { top: gap, left: '50%', transform: 'translateX(-50%)', whiteSpace: 'nowrap', writingMode: 'vertical-rl' }; 
+    case 5: return { top: gap, left: '50%', transform: 'translateX(-50%)', whiteSpace: 'nowrap', writingMode: 'vertical-rl' }; 
     case 0: return { left: gap, top: 0, whiteSpace: 'nowrap' }; 
     case 2: return { right: gap, top: 0, whiteSpace: 'nowrap' };
     case 6: return { left: gap, bottom: 0, whiteSpace: 'nowrap' }; 
     case 8: return { right: gap, bottom: 0, whiteSpace: 'nowrap' };
-    
     default: return { display: 'none' };
   }
 };
@@ -202,7 +200,7 @@ const App = () => {
         chartRef.current.classList.add('printing');
         
         window.html2canvas(chartRef.current, {
-            scale: 2.5, // 高清
+            scale: 2.5, 
             backgroundColor: '#fdfbf7',
             useCORS: true,
             logging: false,
@@ -219,19 +217,38 @@ const App = () => {
     }, 200);
   };
 
+  // 【算法修正】五黄入中逻辑优化
   const resolveStarAndDirection = (star, yuan, currentPeriod, isRep) => {
-    let targetStar = star;
+    // 1. 确定参考卦（如果星是5，则参考当前元运）
     let refTrigramStar = (star === 5) ? currentPeriod : star;
+    
+    // 2. 找到参考卦对应的三山索引
     const indices = TRIGRAM_MOUNTAIN_INDICES[refTrigramStar];
+    // 这里做个保护，防止 refTrigramStar 计算异常
+    if (!indices) return { start: star, forward: true };
+
     const mappedMountainIdx = indices[yuan]; 
     const mappedMountain = MOUNTAINS[mappedMountainIdx];
 
-    if (isRep) targetStar = mappedMountain.repStar;
+    // 3. 确定入中星
+    let targetStar = star;
+    if (isRep) {
+      // 如果是替卦，直接查对应山的替星
+      targetStar = mappedMountain.repStar;
+    } 
+    // 下卦时保持原星（即使是5也保持5，用于后续判断）
 
+    // 4. 确定顺逆
     let direction = true; 
+    
+    // 查找阴阳的基准星：如果是5（无论是原星5还是替出5），都查元运星的阴阳
     const lookupStar = (targetStar === 5) ? currentPeriod : targetStar;
     const yinyangs = STAR_YINYANG[lookupStar];
-    direction = (yinyangs[yuan] === 1);
+    
+    if (yinyangs) {
+       direction = (yinyangs[yuan] === 1);
+    }
+    
     return { start: targetStar, forward: direction };
   };
 
@@ -240,7 +257,6 @@ const App = () => {
     return map[t];
   };
 
-  // 渲染独立的 Overlay 图标 (位于 Grid 之上)
   const renderOverlayIcon = (type, gridIdx) => {
     if (gridIdx === undefined) return null;
     
@@ -253,11 +269,8 @@ const App = () => {
 
     return (
         <div style={style} className="z-20 flex items-center justify-center">
-             {/* 图标主体 */}
              <div className={`w-6 h-6 ${bgColor} text-[#fdfbf7] text-[11px] font-song font-bold flex items-center justify-center border-2 border-white/50 shadow-lg ${isSitting ? 'rounded-sm' : 'rounded-full'} shrink-0 relative`}>
                 {label}
-                
-                {/* 伴随小水印 (仅下载时显示) */}
                 {isDownloading && (
                   <div className={`absolute ${colorClass} font-song text-[10px] font-bold opacity-75`} style={watermarkStyle}>
                     郭骐榕风水传承
@@ -282,20 +295,16 @@ const App = () => {
 
     return (
       <div key={idx} className={`relative ${bgStyle} flex flex-col items-center justify-between p-2 select-none font-song h-full`}>
-        {/* 山向星 */}
         <div className="w-full flex justify-between items-start px-1 mt-0.5">
           <span className="text-3xl font-num font-bold text-stone-800 leading-none">{mtVal}</span>
           <span className="text-3xl font-num font-bold text-[#1e3a8a] leading-none">{wtVal}</span>
         </div>
         
-        {/* 中宫流年/运星 (缩小字号防止切底) */}
         <div className="flex flex-col items-center justify-center -mt-3 z-10 flex-1">
            <span className="text-sm font-num font-bold text-[#b91c1c] mb-0 tracking-widest">({annVal})</span>
-           {/* text-5xl -> text-4xl 缩小运星 */}
            <span className="text-4xl font-song font-black text-[#8b0000] opacity-20 leading-none select-none">{CHINESE_NUMS[baseVal]}</span>
         </div>
         
-        {/* 方位 - 增加 padding-bottom */}
         <div className="text-[11px] font-song text-stone-500 tracking-[0.3em] font-medium opacity-70 pb-1.5">{info.name}</div>
       </div>
     );
@@ -307,7 +316,6 @@ const App = () => {
 
       <div className="w-full max-w-2xl bg-[#fdfbf7] shadow-xl rounded-sm overflow-hidden border border-[#d6d3d1]">
         
-        {/* 标题区 */}
         <div className="bg-[#2a2a2a] text-[#d4af37] p-8 text-center relative">
            <div className="absolute inset-x-0 top-2 h-[1px] bg-[#d4af37] opacity-30 mx-4"></div>
            <div className="absolute inset-x-0 bottom-2 h-[1px] bg-[#d4af37] opacity-30 mx-4"></div>
@@ -319,7 +327,6 @@ const App = () => {
            </div>
         </div>
 
-        {/* 设置面板 */}
         <div className="p-6 bg-[#f5f4f0] border-b border-[#e7e5e4]">
           <div className="flex flex-col gap-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -376,12 +383,10 @@ const App = () => {
           </div>
         </div>
 
-        {/* 盘面展示 (截图区域) */}
         {hasCalculated && chartData ? (
           <div className="flex flex-col items-center pb-8 bg-[#fdfbf7]">
              <div ref={chartRef} className="bg-[#fdfbf7] p-8 sm:p-12 w-full flex flex-col items-center justify-center relative">
                
-               {/* 顶部信息 */}
                <div className="w-full max-w-sm flex justify-between items-end border-b border-[#8b5a2b]/30 pb-2 mb-8 px-2 z-10">
                  <div className="flex flex-col">
                    <span className="text-[10px] text-stone-400 tracking-widest mb-1 font-song">当前格局</span>
@@ -396,22 +401,16 @@ const App = () => {
                  </div>
                </div>
 
-               {/* 图层分离容器 */}
                <div className="relative z-10 mb-20">
                    
-                   {/* Layer 1: 底层九宫格 (带裁剪) */}
-                   {/* overflow-hidden 确保格子不溢出外框，彻底修复“破框”问题 */}
                    <div className="inline-block p-1 bg-[#8b5a2b] shadow-2xl rounded-sm overflow-hidden relative z-10">
                        <div className="border-[3px] border-[#d4af37] p-[2px] bg-[#8b5a2b]">
-                           {/* 强制固定尺寸和行高，防止内容撑大 */}
                            <div className="grid grid-cols-3 grid-rows-3 gap-[1px] bg-[#8b5a2b] w-72 h-72 sm:w-80 sm:h-80 overflow-hidden">
                                {GRID_MAPPING.map((_, idx) => renderCell(idx))}
                            </div>
                        </div>
                    </div>
 
-                   {/* Layer 2: 顶层 Overlay (无裁剪) */}
-                   {/* 绝对定位覆盖在 Layer 1 上，用于放置悬挂图标和水印 */}
                    <div className="absolute inset-0 z-20 pointer-events-none">
                        {renderOverlayIcon('sitting', chartData.sGridIdx)}
                        {renderOverlayIcon('facing', chartData.fGridIdx)}
@@ -419,7 +418,6 @@ const App = () => {
 
                </div>
 
-               {/* 动态图例 */}
                <div className="flex flex-wrap justify-center gap-x-8 gap-y-2 text-xs text-stone-500 font-song opacity-80 z-10 bg-[#fdfbf7]/80 px-4 py-2 rounded-full border border-stone-100">
                  <span className="text-xs tracking-widest text-[#8b5a2b] mr-2 opacity-100">说明中宫：</span>
                  <div className="flex items-center gap-2"><span className="font-num text-lg font-bold text-stone-800">{chartData.mountain[4]}</span><span>山星 (左上)</span></div>
@@ -427,14 +425,12 @@ const App = () => {
                  <div className="flex items-center gap-2"><span className="font-num text-sm font-bold text-[#b91c1c]">({chartData.annual[4]})</span><span>流年 (中上)</span></div>
                </div>
                
-               {/* 底部品牌水印 (下载时显示) */}
                {isDownloading && (
                   <div className="mt-8 text-sm font-weibei text-[#8b0000] opacity-60 tracking-[0.5em]">郭骐榕风水传承</div>
                )}
 
              </div>
 
-             {/* 下载按钮 */}
              <div className="mt-2 mb-4">
                 <button 
                   onClick={handleDownload}
