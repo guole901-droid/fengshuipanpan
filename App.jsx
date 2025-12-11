@@ -27,7 +27,6 @@ const FontStyles = () => (
 );
 
 // --- 基础数据 ---
-// base: 洛书原始数 (用于五黄入中时查找本宫阴阳)
 const GRID_MAPPING = [
   { id: 0, name: '巽', base: 4 }, { id: 1, name: '离', base: 9 }, { id: 2, name: '坤', base: 2 },
   { id: 3, name: '震', base: 3 }, { id: 4, name: '中宫', base: 5 }, { id: 5, name: '兑', base: 7 },
@@ -36,8 +35,7 @@ const GRID_MAPPING = [
 
 const FLIGHT_PATH = [4, 8, 5, 6, 1, 7, 2, 3, 0]; 
 
-// 二十四山数据
-// 【修正】壬山替卦为 2 (巨门)
+// 二十四山数据 (壬山替卦修正为2)
 const MOUNTAINS = [
   { name: '壬', trigram: 1, yuan: 0, repStar: 2 }, 
   { name: '子', trigram: 1, yuan: 1, repStar: 1 },
@@ -70,7 +68,7 @@ const TRIGRAM_MOUNTAIN_INDICES = {
   9: [12, 13, 14], 2: [15, 16, 17], 7: [18, 19, 20], 6: [21, 22, 23]
 };
 
-// 阴阳属性: [地, 天, 人]
+// 正向(下卦)阴阳属性: [地, 天, 人]
 // 1坎: 阳 阴 阴
 // 2坤: 阴 阳 阳
 // 3震: 阳 阴 阴
@@ -174,14 +172,12 @@ const App = () => {
     const sGridIdx = getGridIndexByTrigram(sMountain.trigram);
     const fGridIdx = getGridIndexByTrigram(fMountain.trigram);
     
-    // 【关键】获取坐向宫位的原始洛书数 (gridBase)
     const sOriginalBase = GRID_MAPPING[sGridIdx].base;
     const fOriginalBase = GRID_MAPPING[fGridIdx].base;
     
     const sBaseStar = baseChart[sGridIdx];
     const fBaseStar = baseChart[fGridIdx];
 
-    // 计算时传入 gridBase，用于处理5黄入中
     const { start: mStart, forward: mFwd } = resolveStarAndDirection(sBaseStar, sMountain.yuan, inputReplacement, sOriginalBase);
     const mountainChart = flyStars(mStart, mFwd);
 
@@ -230,15 +226,12 @@ const App = () => {
     }, 200);
   };
 
-  // 【算法重写】完美处理五黄及替卦
+  // 【算法重写】替卦特殊阴阳规则应用
   const resolveStarAndDirection = (star, yuan, isRep, gridBase) => {
-    // 1. 确定入中星 (targetStar)
-    // 规则：如果运星是5，无替，直接用5。
-    // 如果运星不是5且有替卦，查替星。
-    
     let targetStar = star;
     
-    // 替卦逻辑：仅当星不是5时才查找替星
+    // 1. 确定入中星
+    // 规则：运星5无替；其他星查替卦口诀
     if (isRep && star !== 5) {
         const indices = TRIGRAM_MOUNTAIN_INDICES[star];
         if (indices) {
@@ -247,25 +240,38 @@ const App = () => {
         }
     }
     
-    // 2. 确定顺逆 (Direction)
+    // 2. 确定顺逆
     let direction = true;
     
-    // 确定阴阳基准卦 (refTrigram)
-    // 规则：
-    // A. 如果入中星是5 (无论是原星5还是替出来的5)，
-    //    都必须用【本宫洛书数】(gridBase) 来定阴阳。
-    // B. 如果入中星不是5，则用该星本身的卦象定阴阳。
-    
-    let refTrigram = targetStar;
+    // 情况A：五黄入中 (无替卦，或替出5极少见)
+    // 规则：严格遵循下卦规则，看本宫(gridBase)阴阳
     if (targetStar === 5) {
-        refTrigram = gridBase;
+        const refTrigram = gridBase;
+        const yinyangs = STAR_YINYANG[refTrigram];
+        if (yinyangs) direction = (yinyangs[yuan] === 1);
+    } 
+    // 情况B：替卦 (且非5)
+    // 规则：根据校验，替卦有特殊的阴阳反转规律
+    else if (isRep) {
+        // 特例：一白星 (贪狼) 在替卦中似乎总是顺飞 (全阳)
+        if (targetStar === 1) {
+            direction = true; // 顺飞
+        } 
+        else {
+            // 其他星 (2,3,4,6,7,8,9)：阴阳属性与下卦表【完全相反】
+            // 查表得原属性 -> 取反
+            const yinyangs = STAR_YINYANG[targetStar];
+            if (yinyangs) {
+                const standardDir = (yinyangs[yuan] === 1);
+                direction = !standardDir; // 反转
+            }
+        }
     }
-    
-    const yinyangs = STAR_YINYANG[refTrigram];
-    if (yinyangs) {
-        // yuan: 0=地, 1=天, 2=人
-        // 1=阳(顺), -1=阴(逆)
-        direction = (yinyangs[yuan] === 1);
+    // 情况C：下卦 (非替卦)
+    // 规则：查表，标准阴阳
+    else {
+        const yinyangs = STAR_YINYANG[targetStar];
+        if (yinyangs) direction = (yinyangs[yuan] === 1);
     }
     
     return { start: targetStar, forward: direction };
