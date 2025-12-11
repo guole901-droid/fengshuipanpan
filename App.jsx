@@ -226,12 +226,10 @@ const App = () => {
     }, 200);
   };
 
-  // 【算法重写】替卦特殊阴阳规则应用
+  // 【算法重写】替卦特殊阴阳规则 (Specific Rule for Replacement Flight)
   const resolveStarAndDirection = (star, yuan, isRep, gridBase) => {
-    let targetStar = star;
-    
     // 1. 确定入中星
-    // 规则：运星5无替；其他星查替卦口诀
+    let targetStar = star;
     if (isRep && star !== 5) {
         const indices = TRIGRAM_MOUNTAIN_INDICES[star];
         if (indices) {
@@ -243,35 +241,56 @@ const App = () => {
     // 2. 确定顺逆
     let direction = true;
     
-    // 情况A：五黄入中 (无替卦，或替出5极少见)
-    // 规则：严格遵循下卦规则，看本宫(gridBase)阴阳
-    if (targetStar === 5) {
-        const refTrigram = gridBase;
+    if (!isRep) {
+        // 下卦(非兼向)：标准规则
+        let refTrigram = targetStar;
+        if (targetStar === 5) refTrigram = gridBase;
         const yinyangs = STAR_YINYANG[refTrigram];
         if (yinyangs) direction = (yinyangs[yuan] === 1);
-    } 
-    // 情况B：替卦 (且非5)
-    // 规则：根据校验，替卦有特殊的阴阳反转规律
-    else if (isRep) {
-        // 特例：一白星 (贪狼) 在替卦中似乎总是顺飞 (全阳)
+    } else {
+        // 替卦(兼向)：特殊规则
+        
+        // 规则A: 1白星 永远顺飞
         if (targetStar === 1) {
-            direction = true; // 顺飞
-        } 
-        else {
-            // 其他星 (2,3,4,6,7,8,9)：阴阳属性与下卦表【完全相反】
-            // 查表得原属性 -> 取反
-            const yinyangs = STAR_YINYANG[targetStar];
-            if (yinyangs) {
-                const standardDir = (yinyangs[yuan] === 1);
-                direction = !standardDir; // 反转
+            direction = true;
+        }
+        // 规则B: 2黑星 (视来源宫位而定)
+        // 来源 2,7,9 => 顺; 来源 1,3,4,6,8 => 逆
+        else if (targetStar === 2) {
+            const forwardOrigins = [2, 7, 9];
+            // 注意：这里的 gridBase 是运星所在的本宫洛书数
+            if (forwardOrigins.includes(gridBase)) {
+                direction = true;
+            } else {
+                direction = false;
             }
         }
-    }
-    // 情况C：下卦 (非替卦)
-    // 规则：查表，标准阴阳
-    else {
-        const yinyangs = STAR_YINYANG[targetStar];
-        if (yinyangs) direction = (yinyangs[yuan] === 1);
+        // 规则C: 6白星 永远逆飞 (替卦中)
+        else if (targetStar === 6) {
+            direction = false;
+        }
+        // 规则D: 7赤, 9紫 永远顺飞
+        else if (targetStar === 7 || targetStar === 9) {
+            direction = true;
+        }
+        // 规则E: 5黄 (无替) - 采用“阴阳反转”原则
+        // 查原山阴阳：若原山为阴 -> 顺飞; 若原山为阳 -> 逆飞
+        else if (targetStar === 5) {
+             // 查本宫(gridBase)的该元龙阴阳
+             const yinyangs = STAR_YINYANG[gridBase];
+             if (yinyangs) {
+                 const originalIsYang = (yinyangs[yuan] === 1);
+                 direction = !originalIsYang; // 反转
+             }
+        }
+        // 其他星 (3, 4, 8) - 采用“阴阳反转”原则 (Fallback)
+        else {
+             const yinyangs = STAR_YINYANG[targetStar];
+             if (yinyangs) {
+                 const originalIsYang = (yinyangs[yuan] === 1);
+                 direction = !originalIsYang;
+             }
+        }
     }
     
     return { start: targetStar, forward: direction };
