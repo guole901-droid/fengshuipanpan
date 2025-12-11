@@ -27,6 +27,7 @@ const FontStyles = () => (
 );
 
 // --- 基础数据 ---
+// base: 洛书原始数 (用于五黄入中时查找本宫阴阳)
 const GRID_MAPPING = [
   { id: 0, name: '巽', base: 4 }, { id: 1, name: '离', base: 9 }, { id: 2, name: '坤', base: 2 },
   { id: 3, name: '震', base: 3 }, { id: 4, name: '中宫', base: 5 }, { id: 5, name: '兑', base: 7 },
@@ -35,10 +36,9 @@ const GRID_MAPPING = [
 
 const FLIGHT_PATH = [4, 8, 5, 6, 1, 7, 2, 3, 0]; 
 
-// 【数据修正】
-// 壬山替卦修正为 2 (巨门)
+// 二十四山数据 (修正壬山为2)
 const MOUNTAINS = [
-  { name: '壬', trigram: 1, yuan: 0, repStar: 2 }, // 修正点
+  { name: '壬', trigram: 1, yuan: 0, repStar: 2 }, 
   { name: '子', trigram: 1, yuan: 1, repStar: 1 },
   { name: '癸', trigram: 1, yuan: 2, repStar: 1 },
   { name: '丑', trigram: 8, yuan: 0, repStar: 7 },
@@ -163,13 +163,19 @@ const App = () => {
     const baseChart = flyStars(inputPeriod, true);
     const sGridIdx = getGridIndexByTrigram(sMountain.trigram);
     const fGridIdx = getGridIndexByTrigram(fMountain.trigram);
+    
+    // 【关键】获取坐向宫位的原始洛书数 (gridBase)
+    const sOriginalBase = GRID_MAPPING[sGridIdx].base;
+    const fOriginalBase = GRID_MAPPING[fGridIdx].base;
+    
     const sBaseStar = baseChart[sGridIdx];
     const fBaseStar = baseChart[fGridIdx];
 
-    const { start: mStart, forward: mFwd } = resolveStarAndDirection(sBaseStar, sMountain.yuan, inputPeriod, inputReplacement);
+    // 计算时传入 gridBase
+    const { start: mStart, forward: mFwd } = resolveStarAndDirection(sBaseStar, sMountain.yuan, inputReplacement, sOriginalBase);
     const mountainChart = flyStars(mStart, mFwd);
 
-    const { start: wStart, forward: wFwd } = resolveStarAndDirection(fBaseStar, fMountain.yuan, inputPeriod, inputReplacement);
+    const { start: wStart, forward: wFwd } = resolveStarAndDirection(fBaseStar, fMountain.yuan, inputReplacement, fOriginalBase);
     const waterChart = flyStars(wStart, wFwd);
 
     const annualStar = getAnnualStar(inputYear);
@@ -193,12 +199,9 @@ const App = () => {
 
   const handleDownload = () => {
     if (!chartRef.current || !window.html2canvas) return;
-    
     setIsDownloading(true);
-
     setTimeout(() => {
         chartRef.current.classList.add('printing');
-        
         window.html2canvas(chartRef.current, {
             scale: 2.5, 
             backgroundColor: '#fdfbf7',
@@ -217,36 +220,40 @@ const App = () => {
     }, 200);
   };
 
-  // 【算法修正】五黄入中逻辑优化
-  const resolveStarAndDirection = (star, yuan, currentPeriod, isRep) => {
-    // 1. 确定参考卦（如果星是5，则参考当前元运）
-    let refTrigramStar = (star === 5) ? currentPeriod : star;
-    
-    // 2. 找到参考卦对应的三山索引
-    const indices = TRIGRAM_MOUNTAIN_INDICES[refTrigramStar];
-    // 这里做个保护，防止 refTrigramStar 计算异常
-    if (!indices) return { start: star, forward: true };
-
-    const mappedMountainIdx = indices[yuan]; 
-    const mappedMountain = MOUNTAINS[mappedMountainIdx];
-
-    // 3. 确定入中星
+  // 【算法重写】完美处理五黄及替卦
+  const resolveStarAndDirection = (star, yuan, isRep, gridBase) => {
+    // 1. 确定入中星 (targetStar)
     let targetStar = star;
-    if (isRep) {
-      // 如果是替卦，直接查对应山的替星
-      targetStar = mappedMountain.repStar;
-    } 
-    // 下卦时保持原星（即使是5也保持5，用于后续判断）
+    
+    // 如果是替卦，且星不是5（5无替），则查找替星
+    if (isRep && star !== 5) {
+        const indices = TRIGRAM_MOUNTAIN_INDICES[star];
+        if (indices) {
+             const mIdx = indices[yuan]; // 找同元龙的对应山
+             targetStar = MOUNTAINS[mIdx].repStar;
+        }
+    }
+    // 注意：如果原星是5，无论是否替卦，入中星都保持5。
 
-    // 4. 确定顺逆
-    let direction = true; 
+    // 2. 确定顺逆 (Direction)
+    let direction = true;
     
-    // 查找阴阳的基准星：如果是5（无论是原星5还是替出5），都查元运星的阴阳
-    const lookupStar = (targetStar === 5) ? currentPeriod : targetStar;
-    const yinyangs = STAR_YINYANG[lookupStar];
+    // 确定阴阳基准卦 (refTrigram)
+    // 规则：
+    // A. 如果入中星是5 (无论是原星5还是替出来的5)，
+    //    都必须用【本宫洛书数】(gridBase) 来定阴阳。
+    //    (例如：9运5黄在坎，用坎卦(1)定阴阳)
+    // B. 如果入中星不是5，则用该星本身的卦象定阴阳。
     
+    let refTrigram = targetStar;
+    if (targetStar === 5) {
+        refTrigram = gridBase;
+    }
+    
+    const yinyangs = STAR_YINYANG[refTrigram];
     if (yinyangs) {
-       direction = (yinyangs[yuan] === 1);
+        // yuan: 0=地, 1=天, 2=人
+        direction = (yinyangs[yuan] === 1);
     }
     
     return { start: targetStar, forward: direction };
@@ -259,7 +266,6 @@ const App = () => {
 
   const renderOverlayIcon = (type, gridIdx) => {
     if (gridIdx === undefined) return null;
-    
     const style = getOverlayPosition(gridIdx);
     const watermarkStyle = getWatermarkPosition(gridIdx);
     const isSitting = type === 'sitting';
@@ -283,13 +289,11 @@ const App = () => {
 
   const renderCell = (idx) => {
     if (!chartData) return null;
-    
     const baseVal = chartData.base[idx];
     const mtVal = chartData.mountain[idx];
     const wtVal = chartData.water[idx];
     const annVal = chartData.annual[idx]; 
     const info = GRID_MAPPING[idx];
-
     let bgStyle = "bg-[#f9f7f2]"; 
     if (idx === 4) bgStyle = "bg-[#f0eadd]"; 
 
@@ -299,12 +303,10 @@ const App = () => {
           <span className="text-3xl font-num font-bold text-stone-800 leading-none">{mtVal}</span>
           <span className="text-3xl font-num font-bold text-[#1e3a8a] leading-none">{wtVal}</span>
         </div>
-        
         <div className="flex flex-col items-center justify-center -mt-3 z-10 flex-1">
            <span className="text-sm font-num font-bold text-[#b91c1c] mb-0 tracking-widest">({annVal})</span>
            <span className="text-4xl font-song font-black text-[#8b0000] opacity-20 leading-none select-none">{CHINESE_NUMS[baseVal]}</span>
         </div>
-        
         <div className="text-[11px] font-song text-stone-500 tracking-[0.3em] font-medium opacity-70 pb-1.5">{info.name}</div>
       </div>
     );
@@ -313,7 +315,6 @@ const App = () => {
   return (
     <div className="min-h-screen bg-[#e8e6e1] py-8 px-4 font-song text-stone-800 flex flex-col items-center">
       <FontStyles />
-
       <div className="w-full max-w-2xl bg-[#fdfbf7] shadow-xl rounded-sm overflow-hidden border border-[#d6d3d1]">
         
         <div className="bg-[#2a2a2a] text-[#d4af37] p-8 text-center relative">
