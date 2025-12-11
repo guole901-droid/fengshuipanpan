@@ -36,7 +36,8 @@ const GRID_MAPPING = [
 
 const FLIGHT_PATH = [4, 8, 5, 6, 1, 7, 2, 3, 0]; 
 
-// 二十四山数据 (修正壬山为2)
+// 二十四山数据
+// 【修正】壬山替卦为 2 (巨门)
 const MOUNTAINS = [
   { name: '壬', trigram: 1, yuan: 0, repStar: 2 }, 
   { name: '子', trigram: 1, yuan: 1, repStar: 1 },
@@ -69,6 +70,15 @@ const TRIGRAM_MOUNTAIN_INDICES = {
   9: [12, 13, 14], 2: [15, 16, 17], 7: [18, 19, 20], 6: [21, 22, 23]
 };
 
+// 阴阳属性: [地, 天, 人]
+// 1坎: 阳 阴 阴
+// 2坤: 阴 阳 阳
+// 3震: 阳 阴 阴
+// 4巽: 阴 阳 阳
+// 6乾: 阴 阳 阳
+// 7兑: 阳 阴 阴
+// 8艮: 阴 阳 阳
+// 9离: 阳 阴 阴
 const STAR_YINYANG = {
   1: [1, -1, -1], 2: [-1, 1, 1], 3: [1, -1, -1], 4: [-1, 1, 1],
   5: [0, 0, 0], 6: [-1, 1, 1], 7: [1, -1, -1], 8: [-1, 1, 1], 9: [1, -1, -1],
@@ -171,7 +181,7 @@ const App = () => {
     const sBaseStar = baseChart[sGridIdx];
     const fBaseStar = baseChart[fGridIdx];
 
-    // 计算时传入 gridBase
+    // 计算时传入 gridBase，用于处理5黄入中
     const { start: mStart, forward: mFwd } = resolveStarAndDirection(sBaseStar, sMountain.yuan, inputReplacement, sOriginalBase);
     const mountainChart = flyStars(mStart, mFwd);
 
@@ -223,18 +233,20 @@ const App = () => {
   // 【算法重写】完美处理五黄及替卦
   const resolveStarAndDirection = (star, yuan, isRep, gridBase) => {
     // 1. 确定入中星 (targetStar)
+    // 规则：如果运星是5，无替，直接用5。
+    // 如果运星不是5且有替卦，查替星。
+    
     let targetStar = star;
     
-    // 如果是替卦，且星不是5（5无替），则查找替星
+    // 替卦逻辑：仅当星不是5时才查找替星
     if (isRep && star !== 5) {
         const indices = TRIGRAM_MOUNTAIN_INDICES[star];
         if (indices) {
-             const mIdx = indices[yuan]; // 找同元龙的对应山
+             const mIdx = indices[yuan]; 
              targetStar = MOUNTAINS[mIdx].repStar;
         }
     }
-    // 注意：如果原星是5，无论是否替卦，入中星都保持5。
-
+    
     // 2. 确定顺逆 (Direction)
     let direction = true;
     
@@ -242,7 +254,6 @@ const App = () => {
     // 规则：
     // A. 如果入中星是5 (无论是原星5还是替出来的5)，
     //    都必须用【本宫洛书数】(gridBase) 来定阴阳。
-    //    (例如：9运5黄在坎，用坎卦(1)定阴阳)
     // B. 如果入中星不是5，则用该星本身的卦象定阴阳。
     
     let refTrigram = targetStar;
@@ -253,6 +264,7 @@ const App = () => {
     const yinyangs = STAR_YINYANG[refTrigram];
     if (yinyangs) {
         // yuan: 0=地, 1=天, 2=人
+        // 1=阳(顺), -1=阴(逆)
         direction = (yinyangs[yuan] === 1);
     }
     
