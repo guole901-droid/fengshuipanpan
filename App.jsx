@@ -35,7 +35,7 @@ const GRID_MAPPING = [
 
 const FLIGHT_PATH = [4, 8, 5, 6, 1, 7, 2, 3, 0]; 
 
-// 二十四山数据 (修正壬山替卦为2)
+// 二十四山数据 (壬山替卦修正为2)
 const MOUNTAINS = [
   { name: '壬', trigram: 1, yuan: 0, repStar: 2 }, 
   { name: '子', trigram: 1, yuan: 1, repStar: 1 },
@@ -69,15 +69,6 @@ const TRIGRAM_MOUNTAIN_INDICES = {
 };
 
 // 阴阳属性: [地, 天, 人]
-// 1(坎): 壬(+), 子(-), 癸(-)
-// 2(坤): 未(-), 坤(+), 申(+)
-// 3(震): 甲(+), 卯(-), 乙(-)
-// 4(巽): 辰(-), 巽(+), 巳(+)
-// 5(中): 无定性
-// 6(乾): 戌(-), 乾(+), 亥(+)
-// 7(兑): 庚(+), 酉(-), 辛(-)
-// 8(艮): 丑(-), 艮(+), 寅(+)
-// 9(离): 丙(+), 午(-), 丁(-)
 const STAR_YINYANG = {
   1: [1, -1, -1], 
   2: [-1, 1, 1], 
@@ -180,7 +171,6 @@ const App = () => {
     const sGridIdx = getGridIndexByTrigram(sMountain.trigram);
     const fGridIdx = getGridIndexByTrigram(fMountain.trigram);
     
-    // 获取坐向宫位的原始洛书数 (用于判断是否需要反转)
     const sOriginalBase = GRID_MAPPING[sGridIdx].base;
     const fOriginalBase = GRID_MAPPING[fGridIdx].base;
     
@@ -235,7 +225,7 @@ const App = () => {
     }, 200);
   };
 
-  // 【算法重写】替卦顺逆逻辑 V4.0 (包含反转修正)
+  // 【算法重写 V5.0】替卦终极修正 (含宫位反转规则)
   const resolveStarAndDirection = (star, yuan, isRep, gridBase) => {
     // 1. 确定入中星
     let targetStar = star;
@@ -247,25 +237,26 @@ const App = () => {
         }
     }
     
-    // 2. 确定顺逆
+    // 2. 确定顺逆 (默认查表)
     let direction = true;
-    
-    // 基础：下卦或5黄入中 -> 查表
-    // 如果是5，必须用 gridBase (本宫) 查
     let refTrigram = (targetStar === 5) ? gridBase : targetStar;
     const yinyangs = STAR_YINYANG[refTrigram];
     if (yinyangs) direction = (yinyangs[yuan] === 1);
 
-    // 替卦修正：特定宫位替出特定星时，阴阳反转
-    if (isRep && targetStar !== 5) {
-        // 反转逻辑表：[本宫, 替出星]
+    // 3. 替卦特例：反转规则 (Inversion Rules)
+    // 根据您提供的错误案例推导出的“反转映射表”
+    // 格式：'原始宫位-替出星'
+    if (isRep) {
         const inversionMap = [
-            '1-2', // 坎宫替出2
-            '2-1', // 坤宫替出1
-            '3-2', // 震宫替出2
-            '4-6', // 巽宫替出6
-            '8-7', // 艮宫替出7
-            '8-9', // 艮宫替出9
+            '8-6', // 艮宫出6 (寅山申向)
+            '8-2', // 艮宫出2 (艮山坤向)
+            '4-7', // 巽宫出7 (辰山戌向)
+            '4-9', // 巽宫出9 (巳山亥向)
+            '6-2', // 乾宫出2 (戌山辰向, 申山寅向)
+            '7-1', // 兑宫出1 (乙山辛向)
+            '9-6', // 离宫出6 (丙山壬向)
+            '1-5', // 坎宫出5 (丙山壬向之向星，需反转)
+            '2-1', // 坤宫出1 (乙山辛向之向星，需反转)
         ];
         
         const key = `${gridBase}-${targetStar}`;
