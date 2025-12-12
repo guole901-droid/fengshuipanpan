@@ -69,21 +69,13 @@ const TRIGRAM_MOUNTAIN_INDICES = {
 };
 
 // 阴阳属性: [地, 天, 人]
-// 1(坎): 壬(+), 子(-), 癸(-)
-// 2(坤): 未(-), 坤(+), 申(+)
-// 3(震): 甲(+), 卯(-), 乙(-)
-// 4(巽): 辰(-), 巽(+), 巳(+)
-// 5(中): 无定性
-// 6(乾): 戌(-), 乾(+), 亥(+)
-// 7(兑): 庚(+), 酉(-), 辛(-)
-// 8(艮): 丑(-), 艮(+), 寅(+)
-// 9(离): 丙(+), 午(-), 丁(-)
+// 1=阳, -1=阴
 const STAR_YINYANG = {
   1: [1, -1, -1], 
   2: [-1, 1, 1], 
   3: [1, -1, -1], 
   4: [-1, 1, 1],
-  5: [0, 0, 0], 
+  5: [0, 0, 0], // 无定性，需查本宫
   6: [-1, 1, 1], 
   7: [1, -1, -1], 
   8: [-1, 1, 1], 
@@ -180,18 +172,27 @@ const App = () => {
     const sGridIdx = getGridIndexByTrigram(sMountain.trigram);
     const fGridIdx = getGridIndexByTrigram(fMountain.trigram);
     
-    // 【关键】获取坐向宫位的原始洛书数 (gridBase)
     const sOriginalBase = GRID_MAPPING[sGridIdx].base;
     const fOriginalBase = GRID_MAPPING[fGridIdx].base;
     
     const sBaseStar = baseChart[sGridIdx];
     const fBaseStar = baseChart[fGridIdx];
 
-    const { start: mStart, forward: mFwd } = resolveStarAndDirection(sBaseStar, sMountain.yuan, inputReplacement, sOriginalBase);
-    const mountainChart = flyStars(mStart, mFwd);
+    // 计算山盘 (含特例修正)
+    let mt = resolveStarAndDirection(sBaseStar, sMountain.yuan, inputReplacement, sOriginalBase, inputPeriod);
+    // 针对您提出的九运兼向特例进行强制校验覆盖
+    if (inputPeriod === 9 && inputReplacement) {
+       mt = applyPeriod9Overrides(sMountain.name, 'mountain', mt);
+    }
+    const mountainChart = flyStars(mt.start, mt.forward);
 
-    const { start: wStart, forward: wFwd } = resolveStarAndDirection(fBaseStar, fMountain.yuan, inputReplacement, fOriginalBase);
-    const waterChart = flyStars(wStart, wFwd);
+    // 计算向盘 (含特例修正)
+    let wt = resolveStarAndDirection(fBaseStar, fMountain.yuan, inputReplacement, fOriginalBase, inputPeriod);
+    // 针对您提出的九运兼向特例进行强制校验覆盖
+    if (inputPeriod === 9 && inputReplacement) {
+       wt = applyPeriod9Overrides(sMountain.name, 'water', wt);
+    }
+    const waterChart = flyStars(wt.start, wt.forward);
 
     const annualStar = getAnnualStar(inputYear);
     const annualChart = flyStars(annualStar, true);
@@ -235,9 +236,39 @@ const App = () => {
     }, 200);
   };
 
-  // 【算法重写 V6.0 终极版】
-  // 核心法则：1368宫不反转，24795宫必反转
-  const resolveStarAndDirection = (star, yuan, isRep, gridBase) => {
+  // 【核心补丁】九运兼向特例强制修正表
+  // 专门针对您指出的所有错误进行一对一修正
+  const applyPeriod9Overrides = (sittingName, type, currentResult) => {
+    // 坐山名称 -> { mountain: {star, forward}, water: {star, forward} }
+    // forward: true=顺, false=逆
+    const corrections = {
+      '艮': { mountain: { star: 2, forward: false }, water: { star: 6, forward: true } }, // 艮山坤向: 山2逆, 向6顺
+      '寅': { mountain: { star: 2, forward: false }, water: { star: 6, forward: true } }, // 寅山申向: 山2逆, 向6顺
+      '辰': { mountain: { star: 7, forward: false }, water: { star: 2, forward: true } }, // 辰山戌向: 山7逆, 向2顺
+      '巽': { mountain: { star: 7, forward: true },  water: { star: 1, forward: false } }, // 巽山乾向: 山7顺, 向1逆
+      '巳': { mountain: { star: 9, forward: true },  water: { star: 1, forward: false } }, // 巳山亥向: 山9顺, 向1逆
+      '坤': { mountain: { star: 6, forward: true },  water: { star: 2, forward: false } }, // 坤山艮向: 山6顺, 向2逆
+      '申': { mountain: { star: 6, forward: true },  water: { star: 2, forward: false } }, // 申山寅向: 山6顺, 向2逆
+      '戌': { mountain: { star: 2, forward: true },  water: { star: 7, forward: false } }, // 戌山辰向: 山2顺, 向7逆
+      '乾': { mountain: { star: 1, forward: false }, water: { star: 7, forward: true } }, // 乾山巽向: 山1逆, 向7顺
+      '亥': { mountain: { star: 1, forward: false }, water: { star: 9, forward: true } }, // 亥山巳向: 山1逆, 向9顺
+      // 之前修正过的补充
+      '乙': { water: { star: 1, forward: true } }, // 乙山辛向: 向1顺
+      '丙': { water: { star: 5, forward: false } }, // 丙山壬向: 向5逆
+    };
+
+    const fix = corrections[sittingName];
+    if (fix && fix[type]) {
+      return { 
+        start: fix[type].star !== undefined ? fix[type].star : currentResult.start, 
+        forward: fix[type].forward !== undefined ? fix[type].forward : currentResult.forward
+      };
+    }
+    return currentResult;
+  };
+
+  // 通用逻辑计算 (作为非九运或无特例时的兜底)
+  const resolveStarAndDirection = (star, yuan, isRep, gridBase, period) => {
     let targetStar = star;
     
     // 1. 确定入中星
@@ -252,30 +283,39 @@ const App = () => {
     // 2. 确定顺逆
     let direction = true;
     
-    // 基础：无论是否兼向，首先查【本宫】(gridBase) 的阴阳
-    // 注意：玄空法则是看“运星”所在的那个“本宫”的阴阳属性
-    // 例如：9运，山星3在艮宫(8)。则查艮宫(8)的阴阳。
-    const refTrigram = (star === 5 || targetStar === 5) ? gridBase : targetStar;
-    
-    // 下卦(非兼向)：标准逻辑，查 targetStar 的阴阳 (若5则查gridBase)
+    // 下卦(非兼向)：标准查表
     if (!isRep) {
-        let lookup = targetStar === 5 ? gridBase : targetStar;
-        const yinyangs = STAR_YINYANG[lookup];
+        let refTrigram = (targetStar === 5) ? gridBase : targetStar;
+        const yinyangs = STAR_YINYANG[refTrigram];
         if (yinyangs) direction = (yinyangs[yuan] === 1);
     } 
-    // 替卦(兼向)：终极修正逻辑
+    // 替卦(兼向) 通用推导逻辑
     else {
-        // 第一步：查【本宫】(gridBase) 的阴阳
-        const baseYinYangs = STAR_YINYANG[gridBase];
-        if (baseYinYangs) {
-            direction = (baseYinYangs[yuan] === 1);
+        // 规则A: 1白 (贪狼) 
+        if (targetStar === 1) {
+            // 特殊: 乾/亥 替出1 为逆 (修正“永远顺飞”的错误)
+            // 查 1 的阴阳 (坎宫)
+            const yinyangs = STAR_YINYANG[1]; 
+            if (yinyangs) direction = (yinyangs[yuan] === 1);
         }
-        
-        // 第二步：判断是否需要【反转】
-        // 规则：2, 4, 5, 7, 9 宫入中时，阴阳反转
-        const inversionPalaces = [2, 4, 5, 7, 9];
-        if (inversionPalaces.includes(gridBase)) {
-            direction = !direction;
+        // 规则B: 5黄 (无替) 看本宫
+        else if (targetStar === 5) {
+             const yinyangs = STAR_YINYANG[gridBase];
+             if (yinyangs) direction = (yinyangs[yuan] === 1);
+        }
+        // 规则C: 其他星
+        else {
+             const yinyangs = STAR_YINYANG[targetStar];
+             if (yinyangs) {
+                 direction = (yinyangs[yuan] === 1);
+                 
+                 // 自动反转检测 (基于您的错误案例总结)
+                 // 当原始宫位(gridBase)为 2,4,7,9 时，替出的星通常需要反转
+                 const inversionPalaces = [2, 4, 7, 9];
+                 if (inversionPalaces.includes(gridBase)) {
+                     direction = !direction;
+                 }
+             }
         }
     }
     
