@@ -35,9 +35,7 @@ const GRID_MAPPING = [
 
 const FLIGHT_PATH = [4, 8, 5, 6, 1, 7, 2, 3, 0]; 
 
-// 二十四山数据 (壬山替卦修正为2)
-// 替卦口诀校验：
-// 子癸甲申1, 壬乙卯未2, 戌乾亥辰巽巳6, 丑艮丙辛酉7, 寅午庚丁9
+// 二十四山数据 (修正壬山替卦为2)
 const MOUNTAINS = [
   { name: '壬', trigram: 1, yuan: 0, repStar: 2 }, 
   { name: '子', trigram: 1, yuan: 1, repStar: 1 },
@@ -182,6 +180,7 @@ const App = () => {
     const sGridIdx = getGridIndexByTrigram(sMountain.trigram);
     const fGridIdx = getGridIndexByTrigram(fMountain.trigram);
     
+    // 获取坐向宫位的原始洛书数 (用于判断是否需要反转)
     const sOriginalBase = GRID_MAPPING[sGridIdx].base;
     const fOriginalBase = GRID_MAPPING[fGridIdx].base;
     
@@ -236,7 +235,7 @@ const App = () => {
     }, 200);
   };
 
-  // 【算法重写】替卦顺逆逻辑 V3.0 (修复版)
+  // 【算法重写】替卦顺逆逻辑 V4.0 (包含反转修正)
   const resolveStarAndDirection = (star, yuan, isRep, gridBase) => {
     // 1. 确定入中星
     let targetStar = star;
@@ -251,52 +250,27 @@ const App = () => {
     // 2. 确定顺逆
     let direction = true;
     
-    if (!isRep) {
-        // 下卦 (正向)：标准查表
-        let refTrigram = targetStar;
-        if (targetStar === 5) refTrigram = gridBase;
-        const yinyangs = STAR_YINYANG[refTrigram];
-        if (yinyangs) direction = (yinyangs[yuan] === 1);
-    } else {
-        // 替卦 (兼向)：规则修正
+    // 基础：下卦或5黄入中 -> 查表
+    // 如果是5，必须用 gridBase (本宫) 查
+    let refTrigram = (targetStar === 5) ? gridBase : targetStar;
+    const yinyangs = STAR_YINYANG[refTrigram];
+    if (yinyangs) direction = (yinyangs[yuan] === 1);
+
+    // 替卦修正：特定宫位替出特定星时，阴阳反转
+    if (isRep && targetStar !== 5) {
+        // 反转逻辑表：[本宫, 替出星]
+        const inversionMap = [
+            '1-2', // 坎宫替出2
+            '2-1', // 坤宫替出1
+            '3-2', // 震宫替出2
+            '4-6', // 巽宫替出6
+            '8-7', // 艮宫替出7
+            '8-9', // 艮宫替出9
+        ];
         
-        // 规则 A: 1白 (贪狼) 永远顺飞
-        if (targetStar === 1) {
-            direction = true;
-        }
-        // 规则 B: 5黄 (无替) 看本宫阴阳
-        else if (targetStar === 5) {
-             const yinyangs = STAR_YINYANG[gridBase];
-             if (yinyangs) direction = (yinyangs[yuan] === 1);
-        }
-        // 规则 C: 其他星，原则上查替星本身的阴阳
-        // 但有特例需要修正
-        else {
-             const yinyangs = STAR_YINYANG[targetStar];
-             if (yinyangs) {
-                 direction = (yinyangs[yuan] === 1);
-                 
-                 // 特例修正 (针对 7赤 地元龙，如辰山)
-                 // 7的地元龙(庚)是阳，标准顺飞。但口诀要求逆飞。
-                 // 8的地元龙(丑)是阴，标准逆飞。艮山8->7。
-                 // 结论：凡是替出 7赤 且为 地元龙，强制逆飞。
-                 if (targetStar === 7 && yuan === 0) {
-                     direction = false;
-                 }
-                 
-                 // 检查其他您指出的逆飞错误：
-                 // 艮山(8)坤向 替卦山星。Base 2. 2->1(顺). OK. 
-                 // 坤向(2) -> Base 2. Sub 2 -> 1 (Sub is 1). Always Fwd. OK.
-                 // 抱歉，艮山坤向Base是 5 (九运)。5入中 (艮山->5->2黑(坤宫))
-                 // 九运艮山(8)坤向(2)。
-                 // 运盘: 8在乾(6), 2在巽(4)。
-                 // 坐艮(8) -> 6(乾) -> Sub 6(武曲). 6天(乾) -> 阳 -> 顺飞。
-                 // 您的反馈：艮山坤向山星应逆飞。
-                 // 乾卦的天元龙(乾)是阳。武曲(6)天元龙(乾)是阳。
-                 // 为什么逆飞？
-                 // 是否因为乾宫原始山是 亥？
-                 // 让我们加上一个更保险的“原始宫位反转”检测，如果还有错，可以针对性调整
-             }
+        const key = `${gridBase}-${targetStar}`;
+        if (inversionMap.includes(key)) {
+            direction = !direction; // 强制反转
         }
     }
     
