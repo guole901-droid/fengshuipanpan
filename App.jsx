@@ -69,6 +69,15 @@ const TRIGRAM_MOUNTAIN_INDICES = {
 };
 
 // 阴阳属性: [地, 天, 人]
+// 1(坎): 壬(+), 子(-), 癸(-)
+// 2(坤): 未(-), 坤(+), 申(+)
+// 3(震): 甲(+), 卯(-), 乙(-)
+// 4(巽): 辰(-), 巽(+), 巳(+)
+// 5(中): 无定性
+// 6(乾): 戌(-), 乾(+), 亥(+)
+// 7(兑): 庚(+), 酉(-), 辛(-)
+// 8(艮): 丑(-), 艮(+), 寅(+)
+// 9(离): 丙(+), 午(-), 丁(-)
 const STAR_YINYANG = {
   1: [1, -1, -1], 
   2: [-1, 1, 1], 
@@ -171,6 +180,7 @@ const App = () => {
     const sGridIdx = getGridIndexByTrigram(sMountain.trigram);
     const fGridIdx = getGridIndexByTrigram(fMountain.trigram);
     
+    // 【关键】获取坐向宫位的原始洛书数 (gridBase)
     const sOriginalBase = GRID_MAPPING[sGridIdx].base;
     const fOriginalBase = GRID_MAPPING[fGridIdx].base;
     
@@ -225,10 +235,12 @@ const App = () => {
     }, 200);
   };
 
-  // 【算法重写 V5.0】替卦终极修正 (含宫位反转规则)
+  // 【算法重写 V6.0 终极版】
+  // 核心法则：1368宫不反转，24795宫必反转
   const resolveStarAndDirection = (star, yuan, isRep, gridBase) => {
-    // 1. 确定入中星
     let targetStar = star;
+    
+    // 1. 确定入中星
     if (isRep && star !== 5) {
         const indices = TRIGRAM_MOUNTAIN_INDICES[star];
         if (indices) {
@@ -237,31 +249,33 @@ const App = () => {
         }
     }
     
-    // 2. 确定顺逆 (默认查表)
+    // 2. 确定顺逆
     let direction = true;
-    let refTrigram = (targetStar === 5) ? gridBase : targetStar;
-    const yinyangs = STAR_YINYANG[refTrigram];
-    if (yinyangs) direction = (yinyangs[yuan] === 1);
-
-    // 3. 替卦特例：反转规则 (Inversion Rules)
-    // 根据您提供的错误案例推导出的“反转映射表”
-    // 格式：'原始宫位-替出星'
-    if (isRep) {
-        const inversionMap = [
-            '8-6', // 艮宫出6 (寅山申向)
-            '8-2', // 艮宫出2 (艮山坤向)
-            '4-7', // 巽宫出7 (辰山戌向)
-            '4-9', // 巽宫出9 (巳山亥向)
-            '6-2', // 乾宫出2 (戌山辰向, 申山寅向)
-            '7-1', // 兑宫出1 (乙山辛向)
-            '9-6', // 离宫出6 (丙山壬向)
-            '1-5', // 坎宫出5 (丙山壬向之向星，需反转)
-            '2-1', // 坤宫出1 (乙山辛向之向星，需反转)
-        ];
+    
+    // 基础：无论是否兼向，首先查【本宫】(gridBase) 的阴阳
+    // 注意：玄空法则是看“运星”所在的那个“本宫”的阴阳属性
+    // 例如：9运，山星3在艮宫(8)。则查艮宫(8)的阴阳。
+    const refTrigram = (star === 5 || targetStar === 5) ? gridBase : targetStar;
+    
+    // 下卦(非兼向)：标准逻辑，查 targetStar 的阴阳 (若5则查gridBase)
+    if (!isRep) {
+        let lookup = targetStar === 5 ? gridBase : targetStar;
+        const yinyangs = STAR_YINYANG[lookup];
+        if (yinyangs) direction = (yinyangs[yuan] === 1);
+    } 
+    // 替卦(兼向)：终极修正逻辑
+    else {
+        // 第一步：查【本宫】(gridBase) 的阴阳
+        const baseYinYangs = STAR_YINYANG[gridBase];
+        if (baseYinYangs) {
+            direction = (baseYinYangs[yuan] === 1);
+        }
         
-        const key = `${gridBase}-${targetStar}`;
-        if (inversionMap.includes(key)) {
-            direction = !direction; // 强制反转
+        // 第二步：判断是否需要【反转】
+        // 规则：2, 4, 5, 7, 9 宫入中时，阴阳反转
+        const inversionPalaces = [2, 4, 5, 7, 9];
+        if (inversionPalaces.includes(gridBase)) {
+            direction = !direction;
         }
     }
     
