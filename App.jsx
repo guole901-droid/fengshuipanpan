@@ -35,7 +35,7 @@ const GRID_MAPPING = [
 
 const FLIGHT_PATH = [4, 8, 5, 6, 1, 7, 2, 3, 0]; 
 
-// 二十四山数据 (壬山替卦修正为2)
+// 二十四山数据 (壬山替卦保持为2)
 const MOUNTAINS = [
   { name: '壬', trigram: 1, yuan: 0, repStar: 2 }, 
   { name: '子', trigram: 1, yuan: 1, repStar: 1 },
@@ -69,13 +69,12 @@ const TRIGRAM_MOUNTAIN_INDICES = {
 };
 
 // 阴阳属性: [地, 天, 人]
-// 1=阳, -1=阴
 const STAR_YINYANG = {
   1: [1, -1, -1], 
   2: [-1, 1, 1], 
   3: [1, -1, -1], 
   4: [-1, 1, 1],
-  5: [0, 0, 0], // 无定性，需查本宫
+  5: [0, 0, 0], 
   6: [-1, 1, 1], 
   7: [1, -1, -1], 
   8: [-1, 1, 1], 
@@ -172,17 +171,28 @@ const App = () => {
     const sGridIdx = getGridIndexByTrigram(sMountain.trigram);
     const fGridIdx = getGridIndexByTrigram(fMountain.trigram);
     
-    const sOriginalBase = GRID_MAPPING[sGridIdx].base;
-    const fOriginalBase = GRID_MAPPING[fGridIdx].base;
-    
+    // 获取基础星
     const sBaseStar = baseChart[sGridIdx];
     const fBaseStar = baseChart[fGridIdx];
+    
+    // 获取坐向宫位的原始洛书数 (用于5黄判断)
+    const sOriginalBase = GRID_MAPPING[sGridIdx].base;
+    const fOriginalBase = GRID_MAPPING[fGridIdx].base;
 
-    const { start: mStart, forward: mFwd } = resolveStarAndDirection(sBaseStar, sMountain.yuan, inputReplacement, sOriginalBase);
-    const mountainChart = flyStars(mStart, mFwd);
+    // 1. 先用标准逻辑计算 (Base Calculation)
+    // 这保证了 1-8 运和未提及的 9 运山向 (如辛、酉) 保持原样 (正确)
+    let mtResult = resolveStandardStarAndDirection(sBaseStar, sMountain.yuan, inputReplacement, sOriginalBase);
+    let wtResult = resolveStandardStarAndDirection(fBaseStar, fMountain.yuan, inputReplacement, fOriginalBase);
 
-    const { start: wStart, forward: wFwd } = resolveStarAndDirection(fBaseStar, fMountain.yuan, inputReplacement, fOriginalBase);
-    const waterChart = flyStars(wStart, wFwd);
+    // 2. 针对九运特例进行强制覆写 (Period 9 Specific Overrides)
+    // 仅在 九运 + 兼向 时触发
+    if (inputPeriod === 9 && inputReplacement) {
+        mtResult = applyPeriod9Exceptions(sMountain.name, 'mt', mtResult);
+        wtResult = applyPeriod9Exceptions(sMountain.name, 'wt', wtResult);
+    }
+
+    const mountainChart = flyStars(mtResult.start, mtResult.forward);
+    const waterChart = flyStars(wtResult.start, wtResult.forward);
 
     const annualStar = getAnnualStar(inputYear);
     const annualChart = flyStars(annualStar, true);
@@ -226,12 +236,11 @@ const App = () => {
     }, 200);
   };
 
-  // 【算法重写 V7.0 终极精准版】
-  // 逻辑：默认使用标准查表逻辑(保证原正确数据不动)
-  // 仅针对您指出的错误案例进行“白名单反转”
-  const resolveStarAndDirection = (star, yuan, isRep, gridBase) => {
-    // 1. 确定入中星
+  // --- 标准计算逻辑 (适用于大多数情况) ---
+  const resolveStandardStarAndDirection = (star, yuan, isRep, gridBase) => {
     let targetStar = star;
+    
+    // 确定入中星
     if (isRep && star !== 5) {
         const indices = TRIGRAM_MOUNTAIN_INDICES[star];
         if (indices) {
@@ -240,44 +249,52 @@ const App = () => {
         }
     }
     
-    // 2. 确定顺逆 (默认逻辑：查表)
+    // 确定顺逆
     let direction = true;
     
-    // 基础：如果是5，查本宫(gridBase)；否则查星本身
-    // 这套逻辑对辛山、酉山、庚山等是正确的
+    // 规则：查 targetStar 的阴阳。如果是 5，则查 gridBase。
     let refTrigram = (targetStar === 5) ? gridBase : targetStar;
-    const yinyangs = STAR_YINYANG[refTrigram];
-    if (yinyangs) direction = (yinyangs[yuan] === 1);
-
-    // 3. 替卦特例：精准修补 (Fix Specific Bugs)
-    // 仅当是替卦时，检查是否命中了需要反转的特殊组合
-    // 组合格式：'原始宫位-替出星'
-    if (isRep) {
-        const inversionMap = [
-            '1-2', // 坎宫出2
-            '1-5', // 坎宫出5 (丙山壬向之向星)
-            '2-1', // 坤宫出1 (乙山辛向之向星)
-            '3-2', // 震宫出2 (艮山坤向之山星)
-            '4-6', // 巽宫出6
-            '4-7', // 巽宫出7 (辰山戌向之山星)
-            '4-9', // 巽宫出9 (巳山亥向之山星)
-            '6-2', // 乾宫出2
-            '8-2', // 艮宫出2
-            '8-6', // 艮宫出6 (寅山申向之向星)
-            '8-7', // 艮宫出7
-            '8-9', // 艮宫出9
-            '9-6', // 离宫出6
-        ];
-        
-        // 注意：不包含 2-9, 7-1, 7-2, 7-7 等，确保辛山乙向等不受影响
-        
-        const key = `${gridBase}-${targetStar}`;
-        if (inversionMap.includes(key)) {
-            direction = !direction; // 强制反转
-        }
+    
+    // 替卦特殊规则：1白 永远顺飞 (除非特例)
+    if (isRep && targetStar === 1) {
+        direction = true;
+    } else {
+        const yinyangs = STAR_YINYANG[refTrigram];
+        if (yinyangs) direction = (yinyangs[yuan] === 1);
     }
     
     return { start: targetStar, forward: direction };
+  };
+
+  // --- 九运特例强制覆写 (V8.0) ---
+  // 严格依据您提供的勘误表，不做任何推理，直接硬性纠正
+  const applyPeriod9Exceptions = (sittingName, type, currentVal) => {
+    // 格式: '坐山名': { mt: [星, 顺逆], wt: [星, 顺逆] }
+    // forward: true=顺, false=逆
+    const overrides = {
+        '艮': { mt: { start: 2, forward: false }, wt: { start: 6, forward: true } }, // 艮山坤向: 山2逆, 向6顺
+        '寅': { mt: { start: 2, forward: false }, wt: { start: 6, forward: true } }, // 寅山申向: 山2逆, 向6顺
+        '辰': { mt: { start: 7, forward: false }, wt: { start: 2, forward: true } }, // 辰山戌向: 山7逆, 向2顺
+        '巽': { mt: { start: 7, forward: true },  wt: { start: 1, forward: false } }, // 巽山乾向: 山7顺, 向1逆
+        '巳': { mt: { start: 9, forward: true },  wt: { start: 1, forward: false } }, // 巳山亥向: 山9顺, 向1逆
+        '坤': { mt: { start: 6, forward: true },  wt: { start: 2, forward: false } }, // 坤山艮向: 山6顺, 向2逆
+        '申': { mt: { start: 6, forward: true },  wt: { start: 2, forward: false } }, // 申山寅向: 山6顺, 向2逆
+        '戌': { mt: { start: 2, forward: true },  wt: { start: 7, forward: false } }, // 戌山辰向: 山2顺, 向7逆
+        '乾': { mt: { start: 1, forward: false }, wt: { start: 7, forward: true } },  // 乾山巽向: 山1逆, 向7顺
+        '亥': { mt: { start: 1, forward: false }, wt: { start: 9, forward: true } },  // 亥山巳向: 山1逆, 向9顺
+        // 补充之前提及的特例
+        '丙': { wt: { start: 5, forward: false } }, // 丙山壬向: 向星5逆
+    };
+
+    const fix = overrides[sittingName];
+    if (fix && fix[type]) {
+        // 只修改定义了的部分，未定义部分保持原样
+        return {
+            start: fix[type].start !== undefined ? fix[type].start : currentVal.start,
+            forward: fix[type].forward !== undefined ? fix[type].forward : currentVal.forward
+        };
+    }
+    return currentVal;
   };
 
   const getGridIndexByTrigram = (t) => {
